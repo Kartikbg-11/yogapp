@@ -1,0 +1,67 @@
+# ──────────────────────────────────────────────────────────────
+#  CI — InnerPeace
+#  Runs automatically on every push to main/testing and on PRs.
+#  Verifies: install → lint → DB schema → production build → server boots.
+# ──────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # allows running manually from the Actions tab
+
+jobs:
+  build:
+    name: Lint, build & smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout code
+        uses: actions/checkout@v4
+
+      - name: 2. Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 3. Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: 4. Lint
+        run: bun run lint
+
+      - name: 5. Create throwaway SQLite database
+        run: bun run db:push
+        env:
+          DATABASE_URL: file:../db/custom.db
+
+      - name: 6. Build production bundle
+        run: bun run build
+        env:
+          DATABASE_URL: file:../db/custom.db
+          AUTH_SECRET: ci-placeholder-secret
+
+      - name: 7. Smoke test the production server
+        run: |
+          NODE_ENV=production bun .next/standalone/server.js > server.log 2>&1 &
+          SERVER_PID=$!
+          OK=""
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/ > /dev/null; then OK=yes; break; fi
+            sleep 1
+          done
+          kill $SERVER_PID 2>/dev/null || true
+          if [ -z "$OK" ]; then
+            echo "::error::Server did not respond within 30s. Last 50 log lines:"
+            tail -50 server.log
+            exit 1
+          fi
+          echo "Smoke test passed — server answered HTTP 200 on /"
+
+      - name: 8. Upload standalone build (7-day artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: innerpeace-standalone
+          path: .next/standalone/
+          retention-days: 7
