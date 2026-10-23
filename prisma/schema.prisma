@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  name           String
+  avatarSeed     String   @default("lotus")
+  timezone       String   @default("Asia/Calcutta")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  preference          Preference?
+  mantras             Mantra[]
+  chantSessions       ChantSession[]
+  yogaSessions        YogaSession[]
+  meditationSessions  MeditationSession[]
+  goals               DailyGoal[]
+  milestones          Milestone[]
+  journalEntries      JournalEntry[]
+
+  @@index([email])
+}
+
+model Preference {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  theme               String  @default("dark")
+  soundEnabled        Boolean @default(true)
+  hapticsEnabled      Boolean @default(true)
+  dailyReminder       Boolean @default(false)
+  reminderTime        String  @default("06:30")
+  motivationalQuotes  Boolean @default(true)
+  preferredMantraId   String?
+  defaultChantTarget  Int     @default(108)
+  dailyYogaGoal       Int     @default(1)
+  dailyMeditationGoal Int     @default(10)
+  dailyChantGoal      Int     @default(108)
+}
+
+model Mantra {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  text      String
+  meaning   String?
+  isCustom  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ChantSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mantraId    String?
+  mantraName  String
+  count       Int      @default(0)
+  target      Int      @default(108)
+  durationSec Int      @default(0)
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, completed])
+}
+
+model YogaRoutine {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  category    String
+  level       String
+  durationMin Int
+  imageKey    String
+  description String
+  benefits    String
+  safety      String
+  poses       String
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@index([level])
+}
+
+model YogaSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routineId    String?
+  routineTitle String
+  durationSec  Int      @default(0)
+  completed    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model MeditationSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedSec  Int      @default(0)
+  durationSec Int      @default(0)
+  ambient     String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model DailyGoal {
+  id                String @id @default(cuid())
+  userId            String
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date              String
+  yogaTarget        Int    @default(1)
+  meditationTarget  Int    @default(10)
+  chantTarget       Int    @default(108)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key         String
+  title       String
+  description String
+  icon        String   @default("award")
+  achievedAt  DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  category  String   @default("reflection")
+  mood      String?
+  entryDate String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, entryDate])
+  @@index([userId, category])
+}

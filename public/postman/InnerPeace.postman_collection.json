@@ -1,0 +1,809 @@
+{
+  "info": {
+    "_postman_id": "b7f3e2a1-4c8d-4e5a-9f21-innerpeace0001",
+    "name": "InnerPeace API",
+    "description": "## InnerPeace — Yoga / Meditation / Mantra API\n\nComplete Postman collection for the InnerPeace wellness app (Next.js 16 + Prisma + SQLite).\n\n### 🚀 Quick Start\n1. Run **Auth → Login** (demo credentials are pre-filled: `demo@innerpeace.app` / `innerpeace123`).\n2. The test script automatically saves the `token` to the collection variable — every other request works instantly.\n3. IDs (`chantSessionId`, `journalId`, `createdMantraId`) are also auto-captured when you create resources.\n\n### ⚙️ Variables\n- `baseUrl` — default `http://localhost:3000`. If you run Postman outside this sandbox, point it at the reachable app host (e.g. the preview URL).\n- `token` — set automatically by Login/Register test scripts (valid 30 days).\n\n### 📌 Notes\n- **Counters are absolute, not incremental**: PATCH endpoints expect full current values (idempotent — retries never double-count).\n- **Ownership**: foreign resource IDs return `404`.\n- **Dates**: `YYYY-MM-DD`, computed in IST (+05:30).\n- Full reference: `docs/API.md` in the project.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "innerpeace"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "previewUrl", "value": "https://preview-chat-7fab88dc-7908-4535-a000-e59bade89906.space-z.ai", "description": "Sandbox preview host — copy into baseUrl if calling from outside the sandbox" },
+    { "key": "token", "value": "", "description": "Auto-saved by Login / Register test scripts" },
+    { "key": "chantSessionId", "value": "", "description": "Auto-saved when you create a chant session" },
+    { "key": "createdMantraId", "value": "", "description": "Auto-saved when you create a custom mantra" },
+    { "key": "journalId", "value": "", "description": "Auto-saved when you create a journal entry" }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            },
+            "description": "Unauthenticated smoke test. Returns `{ \"message\": \"Hello, world!\" }`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.token);",
+                  "    console.log('✅ Registered — token saved');",
+                  "} else {",
+                  "    console.warn('Register failed:', JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"you@example.com\",\n  \"password\": \"yoga12345\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Create an account. Rules: name ≥ 2 chars, valid email, password ≥ 6 chars.\n\nErrors: `400` validation · `409` email exists.\n\n**On 201 the test script saves the token automatically.**"
+          },
+          "response": []
+        },
+        {
+          "name": "Login (demo account)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.token);",
+                  "    console.log('✅ Logged in as', body.user.name, '— token saved to collection variable');",
+                  "} else {",
+                  "    console.warn('Login failed:', JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@innerpeace.app\",\n  \"password\": \"innerpeace123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with the **pre-seeded demo account** (14 days of history included). Run this first — the token is saved automatically and all other requests start working."
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Validate the stored token / fetch current profile. `401` means the token is missing, invalid or expired (30-day expiry)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Mantras",
+      "item": [
+        {
+          "name": "List mantras",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.mantras && body.mantras.length) {",
+                  "    console.log('✅', body.mantras.length, 'mantras:', body.mantras.map(m => m.name).join(', '));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mantras",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mantras"]
+            },
+            "description": "Returns 6 seeded global mantras (Om, Om Namah Shivaya, Hare Krishna, Gayatri, Om Mani Padme Hum, So Hum) **plus** your custom ones (`isCustom: true`)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create custom mantra",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('createdMantraId', body.mantra.id);",
+                  "    console.log('✅ Created mantra', body.mantra.id, '— saved to createdMantraId');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Morning Mantra\",\n  \"text\": \"So Hum\",\n  \"meaning\": \"I am that\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mantras",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mantras"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete custom mantra",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mantras/{{createdMantraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mantras", "{{createdMantraId}}"]
+            },
+            "description": "Deletes a **custom mantra owned by you**. Global mantras / other users' mantras → `404`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Chant Sessions (Mantra Counter)",
+      "item": [
+        {
+          "name": "List sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chant-sessions?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chant-sessions"],
+              "query": [
+                { "key": "limit", "value": "20", "description": "1–100, default 20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get active (resumable) session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chant-sessions?active=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chant-sessions"],
+              "query": [
+                { "key": "active", "value": "1" }
+              ]
+            },
+            "description": "Returns the latest **unfinished** session updated within the last 24 h (`{ active: ChantSession | null }`) — used by the app to restore an interrupted counting session."
+          },
+          "response": []
+        },
+        {
+          "name": "Create session (idempotent upsert)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('chantSessionId', body.session.id);",
+                  "    console.log('✅ Session', body.session.id, '— count:', body.session.count, '/', body.session.target, '— saved to chantSessionId');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"postman-demo-0001\",\n  \"mantraName\": \"Om\",\n  \"target\": 108,\n  \"count\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chant-sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chant-sessions"]
+            },
+            "description": "Creates a session, or **upserts by client `id`** (min 8 chars). Sending the same `id` twice updates the same row — safe against double-taps and offline replays.\n\n`target` clamped 27–1008 (27/54/108/216/1008) · `count` clamped 0–1008.\n\nReturns `201` on create, `200` on upsert. `milestones` array is populated when a completed action unlocks a badge."
+          },
+          "response": []
+        },
+        {
+          "name": "Update count (absolute values)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"count\": 3,\n  \"durationSec\": 45\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chant-sessions/{{chantSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chant-sessions", "{{chantSessionId}}"]
+            },
+            "description": "**Values are absolute, not increments** — always send the full current count. This makes duplicate/retried requests harmless. `count` is clamped ≥ 0."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.milestones && body.milestones.length) {",
+                  "    console.log('🏅 New milestones unlocked:', body.milestones.map(m => m.title).join(', '));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"count\": 108,\n  \"durationSec\": 900,\n  \"completed\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chant-sessions/{{chantSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chant-sessions", "{{chantSessionId}}"]
+            },
+            "description": "Mark the mala round as complete. Check the console for newly unlocked milestone badges."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Yoga",
+      "item": [
+        {
+          "name": "List routines",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.routines) {",
+                  "    console.log('✅', body.routines.length, 'routines:', body.routines.map(r => r.slug).join(', '));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/yoga/routines",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "yoga", "routines"]
+            },
+            "description": "8 seeded routines (beginner-flow, desk-reset, sun-salutation, warrior-strength, deep-flexibility, advanced-inversion, evening-wind-down, pranayama) with full pose arrays (`name`, `sanskritName`, `durationSec`, `instructions`, `safety`)."
+          },
+          "response": []
+        },
+        {
+          "name": "List yoga sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/yoga/sessions?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "yoga", "sessions"],
+              "query": [
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Log yoga session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routineTitle\": \"Sun Salutation\",\n  \"durationSec\": 600,\n  \"completed\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/yoga/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "yoga", "sessions"]
+            },
+            "description": "Add `\"routineId\": \"<id from List routines>\"` to link a specific routine."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Meditation",
+      "item": [
+        {
+          "name": "List meditation sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/meditation/sessions?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meditation", "sessions"],
+              "query": [
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Log meditation session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plannedSec\": 600,\n  \"durationSec\": 600,\n  \"ambient\": \"rain\",\n  \"completed\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meditation/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meditation", "sessions"]
+            },
+            "description": "`ambient` ∈ `rain` | `ocean` | `forest` | `wind` | `bells` (optional, nullable)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Daily Goals",
+      "item": [
+        {
+          "name": "Get today's goals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/goals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "goals"]
+            },
+            "description": "Omit `date` for today (IST). Derived fields: `yogaDone` = completed yoga sessions that day · `meditationDone` = completed meditation **minutes** · `chantDone` = total chant count."
+          },
+          "response": []
+        },
+        {
+          "name": "Get goals by date",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/goals?date=2026-10-23",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "goals"],
+              "query": [
+                { "key": "date", "value": "2026-10-23", "description": "YYYY-MM-DD" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update goals",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-10-23\",\n  \"yogaTarget\": 1,\n  \"meditationTarget\": 15,\n  \"chantTarget\": 108\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/goals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "goals"]
+            },
+            "description": "Upserts the goal row for the given date. Adjust `date` to the day you want to configure."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Analytics",
+      "item": [
+        {
+          "name": "Summary (30 days)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const s = pm.response.json().summary;",
+                  "console.log('✅ totals:', JSON.stringify(s.totals));",
+                  "console.log('   streak:', JSON.stringify(s.streak), '| byDay entries:', s.byDay.length, '| records:', JSON.stringify(s.records));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/summary?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "summary"],
+              "query": [
+                { "key": "days", "value": "30", "description": "1–365, default 30" }
+              ]
+            },
+            "description": "Aggregated payload powering the Progress view: lifetime totals, current/longest streak, **zero-filled** per-day activity (`byDay` — one entry per day, oldest first, ready for Recharts), records and milestones."
+          },
+          "response": []
+        },
+        {
+          "name": "Summary (7 days)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/summary?days=7",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "summary"],
+              "query": [
+                { "key": "days", "value": "7" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Milestones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/milestones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "milestones"]
+            },
+            "description": "10 badge types: `first_session`, `chants_108`, `chants_1080`, `mala_10`, `streak_7`, `streak_30`, `meditation_60`, `meditation_300`, `yoga_10`, `journal_5`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Journal",
+      "item": [
+        {
+          "name": "List entries (search / filter / paginate)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/journal?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "journal"],
+              "query": [
+                { "key": "search", "value": "", "description": "matches title + content", "disabled": true },
+                { "key": "category", "value": "gratitude", "description": "gratitude | reflection | goals | meditation", "disabled": true },
+                { "key": "from", "value": "2026-10-01", "description": "YYYY-MM-DD", "disabled": true },
+                { "key": "to", "value": "2026-10-23", "description": "YYYY-MM-DD", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20", "description": "1–50" }
+              ]
+            },
+            "description": "Returns `{ entries, total, page, pageSize }`. Enable the disabled query params to filter."
+          },
+          "response": []
+        },
+        {
+          "name": "Create entry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('journalId', body.entry.id);",
+                  "    console.log('✅ Entry created — saved to journalId');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman test entry\",\n  \"content\": \"Created from the InnerPeace Postman collection.\",\n  \"category\": \"gratitude\",\n  \"mood\": \"peaceful\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/journal",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "journal"]
+            },
+            "description": "`title` and `content` required. `category` invalid/missing → `reflection`. `entryDate` missing → today (IST)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get entry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/journal/{{journalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "journal", "{{journalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update entry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mood\": \"calm\",\n  \"content\": \"Updated from Postman.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/journal/{{journalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "journal", "{{journalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete entry",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/journal/{{journalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "journal", "{{journalId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Preferences",
+      "item": [
+        {
+          "name": "Get preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"soundEnabled\": true,\n  \"hapticsEnabled\": true,\n  \"theme\": \"dark\",\n  \"dailyChantGoal\": 108\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences"]
+            },
+            "description": "Send any subset of: `theme`, `soundEnabled`, `hapticsEnabled`, `dailyReminder`, `reminderTime`, `motivationalQuotes`, `preferredMantraId`, `defaultChantTarget`, `dailyYogaGoal`, `dailyMeditationGoal`, `dailyChantGoal`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Reports (CSV)",
+      "item": [
+        {
+          "name": "Export chant CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/csv?type=chant",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "csv"],
+              "query": [
+                { "key": "type", "value": "chant", "description": "yoga | meditation | chant | journal" }
+              ]
+            },
+            "description": "Returns `text/csv` (last 365 days). **To download:** click *Send and Download* (or Send → Save Response → Save to file). Columns: Date, Mantra, Count, Target, Mala Rounds, Duration (min), Completed."
+          },
+          "response": []
+        },
+        {
+          "name": "Export yoga CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/csv?type=yoga",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "csv"],
+              "query": [
+                { "key": "type", "value": "yoga" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export meditation CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/csv?type=meditation",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "csv"],
+              "query": [
+                { "key": "type", "value": "meditation" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export journal CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/csv?type=journal",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "csv"],
+              "query": [
+                { "key": "type", "value": "journal" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
